@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virus MLM Testnet</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 20px auto; padding: 0 20px; background: #f5f5f5; }
+        h1 { color: #333; }
+        .button { background: #4CAF50; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; margin: 5px; }
+        .button:hover { background: #45a049; }
+        .input { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; }
+        .status { margin-top: 20px; padding: 10px; background: #e7f3ff; border-radius: 4px; }
+        .pending { background: #fff3cd; }
+        .success { background: #d4edda; }
+        .error { background: #f8d7da; }
+    </style>
+</head>
+<body>
+    <h1>Virus MLM Testnet Interface</h1>
+    <p>Contract: <strong>0x98794e58AB199f3F499Dd89486DEaCD8688E5a6C</strong></p>
+    <button class="button" onclick="connectWallet()">Подключить кошелек</button>
+    <div class="status" id="status"></div>
+
+    <h2>Регистрация</h2>
+    <input class="input" id="referrer" placeholder="Адрес реферера">
+    <button class="button" onclick="register()">Зарегистрироваться</button>
+
+    <h2>Активация пакета</h2>
+    <input class="input" id="packetIndex" type="number" min="1" max="5" value="1">
+    <button class="button" onclick="activatePacket()">Активировать пакет</button>
+
+    <h2>VIP</h2>
+    <input class="input" id="vipLevel" type="number" min="1" max="5" value="1">
+    <button class="button" onclick="requestVip()">Запросить VIP</button>
+    <button class="button" onclick="confirmVip()">Подтвердить VIP (админ)</button>
+
+    <h2>Вывод средств</h2>
+    <button class="button" onclick="claimMatrix()">Вывести матричный баланс</button>
+    <button class="button" onclick="claimPool()">Вывести из пула</button>
+
+    <h2>Информация</h2>
+    <input class="input" id="userAddress" placeholder="Адрес пользователя">
+    <button class="button" onclick="getUserInfo()">Получить информацию</button>
+    <div id="info" class="status"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/web3@1.5.2/dist/web3.min.js"></script>
+    <script>
+        const CONTRACT_ADDRESS = '0x98794e58AB199f3F499Dd89486DEaCD8688E5a6C';
+        let web3;
+        let contract;
+        let userAddress;
+
+        // ABI (только нужные функции)
+        const abi = [
+            {"inputs":[{"internalType":"address","name":"_user","type":"address"}],"name":"getUserInfo","outputs":[{"internalType":"uint256","name":"currentPacket","type":"uint256"},{"internalType":"address","name":"referrer","type":"address"},{"internalType":"uint256","name":"placementId","type":"uint256"},{"internalType":"uint256","name":"matrixBalance","type":"uint256"},{"internalType":"uint256","name":"poolBalance","type":"uint256"},{"internalType":"uint256","name":"totalEarned","type":"uint256"},{"internalType":"bool","name":"isRegistered_","type":"bool"}],"stateMutability":"view","type":"function"},
+            {"inputs":[{"internalType":"address","name":"_referrer","type":"address"}],"name":"register","outputs":[],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[{"internalType":"uint256","name":"_packetIndex","type":"uint256"}],"name":"activatePacket","outputs":[],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[{"internalType":"uint256","name":"_starLevel","type":"uint256"}],"name":"requestVip","outputs":[],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[{"internalType":"address","name":"_user","type":"address"},{"internalType":"uint256","name":"_starLevel","type":"uint256"}],"name":"confirmVip","outputs":[],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[],"name":"claimMatrix","outputs":[],"stateMutability":"nonpayable","type":"function"},
+            {"inputs":[],"name":"claimPool","outputs":[],"stateMutability":"nonpayable","type":"function"}
+        ];
+
+        async function connectWallet() {
+            if (window.ethereum) {
+                try {
+                    web3 = new Web3(window.ethereum);
+                    await window.ethereum.request({ method: 'eth_requestAccounts' });
+                    const accounts = await web3.eth.getAccounts();
+                    userAddress = accounts[0];
+                    document.getElementById('status').innerHTML = `✅ Подключен: ${userAddress}`;
+                    
+                    // Проверка сети
+                    const chainId = await web3.eth.getChainId();
+                    if (chainId !== 97) {
+                        document.getElementById('status').innerHTML += `<br>⚠️ Переключись на BSC Testnet (chainId 97)`;
+                    }
+                    
+                    contract = new web3.eth.Contract(abi, CONTRACT_ADDRESS);
+                } catch (error) {
+                    document.getElementById('status').innerHTML = `❌ Ошибка: ${error.message}`;
+                }
+            } else {
+                document.getElementById('status').innerHTML = '❌ Установи MetaMask';
+            }
+        }
+
+        async function register() {
+            if (!contract) return alert('Сначала подключи кошелек');
+            const referrer = document.getElementById('referrer').value;
+            if (!referrer) return alert('Введи адрес реферера');
+            try {
+                await contract.methods.register(referrer).send({ from: userAddress });
+                document.getElementById('status').innerHTML = '✅ Регистрация успешна';
+            } catch (error) {
+                document.getElementById('status').innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+
+        async function activatePacket() {
+            if (!contract) return alert('Сначала подключи кошелек');
+            const index = document.getElementById('packetIndex').value;
+            try {
+                await contract.methods.activatePacket(index).send({ from: userAddress });
+                document.getElementById('status').innerHTML = `✅ Пакет ${index} активирован`;
+            } catch (error) {
+                document.getElementById('status').innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+
+        async function requestVip() {
+            if (!contract) return alert('Сначала подключи кошелек');
+            const level = document.getElementById('vipLevel').value;
+            try {
+                await contract.methods.requestVip(level).send({ from: userAddress });
+                document.getElementById('status').innerHTML = `✅ Запрос VIP ${level} отправлен`;
+            } catch (error) {
+                document.getElementById('status').innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+
+        async function confirmVip() {
+            if (!contract) return alert('Сначала подключи кошелек');
+            const level = document.getElementById('vipLevel').value;
+            try {
+                await contract.methods.confirmVip(userAddress, level).send({ from: userAddress });
+                document.getElementById('status').innerHTML = `✅ VIP ${level} подтвержден`;
+            } catch (error) {
+                document.getElementById('status').innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+
+        async function claimMatrix() {
+            if (!contract) return alert('Сначала подключи кошелек');
+            try {
+                await contract.methods.claimMatrix().send({ from: userAddress });
+                document.getElementById('status').innerHTML = `✅ Вывод матричного баланса выполнен`;
+            } catch (error) {
+                document.getElementById('status').innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+
+        async function claimPool() {
+            if (!contract) return alert('Сначала подключи кошелек');
+            try {
+                await contract.methods.claimPool().send({ from: userAddress });
+                document.getElementById('status').innerHTML = `✅ Вывод из пула выполнен`;
+            } catch (error) {
+                document.getElementById('status').innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+
+        async function getUserInfo() {
+            if (!contract) return alert('Сначала подключи кошелек');
+            const user = document.getElementById('userAddress').value || userAddress;
+            try {
+                const info = await contract.methods.getUserInfo(user).call();
+                document.getElementById('info').innerHTML = `
+                    Пакет: ${info.currentPacket / 1e18} USDT<br>
+                    Реферер: ${info.referrer}<br>
+                    Матричный баланс: ${info.matrixBalance / 1e18} USDT<br>
+                    Баланс пула: ${info.poolBalance / 1e18} USDT<br>
+                    Всего заработано: ${info.totalEarned / 1e18} USDT<br>
+                    Зарегистрирован: ${info.isRegistered_}
+                `;
+            } catch (error) {
+                document.getElementById('info').innerHTML = `❌ Ошибка: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>
